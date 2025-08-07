@@ -1,0 +1,79 @@
+clc;
+clear;
+close all;
+
+%% PARAMETERS
+num_users = 6;
+iterations = 50;
+initial_delay = 10;
+delay_reduction_factor = 0.95;
+
+%% USER SCHEDULING (Simplified K-CUT Simulation)
+groups = 2; % Number of user groups
+interf_matrix = rand(num_users);
+interf_matrix = triu(interf_matrix,1) + triu(interf_matrix,1)'; % symmetric
+
+user_groups = cell(groups,1);
+
+for u = 1:num_users
+    min_interf = inf;
+    best_group = 1;
+    for g = 1:groups
+        temp_group = [user_groups{g}, u];
+        temp_interf = 0;
+        for i = 1:length(temp_group)
+            for j = i+1:length(temp_group)
+                temp_interf = temp_interf + interf_matrix(temp_group(i), temp_group(j));
+            end
+        end
+        if temp_interf < min_interf
+            min_interf = temp_interf;
+            best_group = g;
+        end
+    end
+    user_groups{best_group} = [user_groups{best_group}, u];
+end
+
+disp("User Scheduling (Groups):");
+for g = 1:groups
+    fprintf("Group %d: Users %s\n", g, mat2str(user_groups{g}));
+end
+
+%% POWER CONTROL (SIF-Based)
+channel_gain = rand(num_users);    % Random channel gains
+noise_power = 0.1;
+SINR_target = 2;
+power = ones(num_users,1);         % Initial power
+
+max_iter = 30;
+for t = 1:max_iter
+    new_power = zeros(num_users,1);
+    for i = 1:num_users
+        interf = sum(channel_gain(i,:) .* power') - channel_gain(i,i)*power(i);
+        new_power(i) = (SINR_target * (interf + noise_power)) / channel_gain(i,i);
+    end
+    power = new_power;
+end
+
+disp('Final Power Allocation:');
+disp(power);
+
+%% DELAY SIMULATION (Using Power and Exponential Decay)
+delay = zeros(num_users, iterations);
+for u = 1:num_users
+    for i = 1:iterations
+        delay(u, i) = (initial_delay * delay_reduction_factor^i) / power(u);
+    end
+end
+
+%% PLOTTING DELAY vs ITERATIONS FOR EACH USER
+figure;
+for u = 1:num_users
+    plot(1:iterations, delay(u,:), 'LineWidth', 2); hold on;
+end
+xlabel('Iterations');
+ylabel('Delay (ms)');
+title('User Delay vs Iterations (With Scheduling and Power Control)');
+legend(arrayfun(@(x) ['User ' num2str(x)], 1:num_users, 'UniformOutput', false));
+grid on;
+drawnow;
